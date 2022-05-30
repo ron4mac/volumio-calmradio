@@ -11,9 +11,9 @@ var tokenExpirationTime;
 /**
  * CONSTRUCTOR
  */
-module.exports = ControllerHotelRadio;
+module.exports = ControllerCalmRadio;
 
-function ControllerHotelRadio(context) {
+function ControllerCalmRadio(context) {
 	var self=this;
 
     this.context = context;
@@ -22,13 +22,13 @@ function ControllerHotelRadio(context) {
     this.configManager = this.context.configManager;
 }
 
-ControllerHotelRadio.prototype.getConfigurationFiles = function () {
+ControllerCalmRadio.prototype.getConfigurationFiles = function () {
     var self = this;
 
     return ['config.json'];
 };
 
-ControllerHotelRadio.prototype.onVolumioStart = function () {
+ControllerCalmRadio.prototype.onVolumioStart = function () {
     var defer=libQ.defer();
 
     this.mpdPlugin=this.commandRouter.pluginManager.getPlugin('music_service', 'mpd');
@@ -41,7 +41,7 @@ ControllerHotelRadio.prototype.onVolumioStart = function () {
     return defer.promise;
 };
 
-ControllerHotelRadio.prototype.onStart = function () {
+ControllerCalmRadio.prototype.onStart = function () {
     var defer=libQ.defer();
 
     this.loadI18n();
@@ -53,7 +53,7 @@ ControllerHotelRadio.prototype.onStart = function () {
     return defer.promise;
 };
 
-ControllerHotelRadio.prototype.loadI18n = function () {
+ControllerCalmRadio.prototype.loadI18n = function () {
     var self=this;
 
     var language_code = this.commandRouter.sharedVars.get('language_code');
@@ -71,7 +71,7 @@ ControllerHotelRadio.prototype.loadI18n = function () {
     });
 };
 
-ControllerHotelRadio.prototype.getI18n = function (key) {
+ControllerCalmRadio.prototype.getI18n = function (key) {
     var self=this;
 
     if (key.indexOf('.') > 0) {
@@ -92,16 +92,16 @@ ControllerHotelRadio.prototype.getI18n = function (key) {
     }
 };
 
-ControllerHotelRadio.prototype.startupLogin = function () {
+ControllerCalmRadio.prototype.startupLogin = function () {
     var self=this;
 
     self.shallLogin()
-        .then(()=>self.loginToHotelRadio(this.config.get('username'), this.config.get('password'), false))
+        .then(()=>self.loginToCalmRadio(this.config.get('username'), this.config.get('password'), false))
         .then(()=>self.registerIPAddress())
         .then(()=>self.addToBrowseSources())
 };
 
-ControllerHotelRadio.prototype.shallLogin = function () {
+ControllerCalmRadio.prototype.shallLogin = function () {
     var self=this;
     var defer=libQ.defer()
 
@@ -120,15 +120,15 @@ ControllerHotelRadio.prototype.shallLogin = function () {
     return defer.promise
 };
 
-ControllerHotelRadio.prototype.loginToHotelRadio=function(username, password) {
+ControllerCalmRadio.prototype.loginToCalmRadio=function(username, password) {
     var defer=libQ.defer()
     var self=this;
 
-    self.logger.info('Loggin in to HotelRadio');
+    self.logger.info('Loggin in to CalmRadio');
 
-    unirest.post('https://users.calmradio/api/index/login')
-        .send('username='+username)
-        .send('password='+password)
+    unirest.post('https://api.calmradio.com/get_token')
+        .send('user='+username)
+        .send('pass='+password)
         .then((response)=>{
             if(response && 
                 response.cookies && 
@@ -153,7 +153,7 @@ ControllerHotelRadio.prototype.loginToHotelRadio=function(username, password) {
     return defer.promise
 }
 
-ControllerHotelRadio.prototype.registerIPAddress=function() {
+ControllerCalmRadio.prototype.registerIPAddress=function() {
     var self=this
     var defer=libQ.defer()
     
@@ -182,7 +182,7 @@ ControllerHotelRadio.prototype.registerIPAddress=function() {
     return defer.promise
 }
 
-ControllerHotelRadio.prototype.onStop = function () {
+ControllerCalmRadio.prototype.onStop = function () {
     var self = this;
     var defer=libQ.defer();
 
@@ -194,15 +194,15 @@ ControllerHotelRadio.prototype.onStop = function () {
     return defer.promise;
 };
 
-ControllerHotelRadio.prototype.addToBrowseSources = function () {
+ControllerCalmRadio.prototype.addToBrowseSources = function () {
     var self = this;
 
-    self.logger.info('Adding Hotel Radio to Browse Sources');
+    self.logger.info('Adding Calm Radio to Browse Sources');
     var data = {name: 'calmradio', uri: 'calmradio://',plugin_type:'music_service',plugin_name:'calmradio',albumart:'/albumart?sectionimage=music_service/calmradio/icons/calmradio-icon.png'};
     return self.commandRouter.volumioAddToBrowseSources(data);
 }
 
-ControllerHotelRadio.prototype.handleBrowseUri = function (curUri) {
+ControllerCalmRadio.prototype.handleBrowseUri = function (curUri) {
     switch(curUri)
     {
         case 'calmradio://':
@@ -213,7 +213,7 @@ ControllerHotelRadio.prototype.handleBrowseUri = function (curUri) {
     }
 };
 
-ControllerHotelRadio.prototype.handleRootBrowseUri=function() {
+ControllerCalmRadio.prototype.handleRootBrowseUri=function() {
     var defer=libQ.defer()
     var self=this
 
@@ -261,7 +261,7 @@ ControllerHotelRadio.prototype.handleRootBrowseUri=function() {
     return defer.promise
 }
 
-ControllerHotelRadio.prototype.handleGroupBrowseUri=function(curUri) {
+ControllerCalmRadio.prototype.handleGroupBrowseUri=function(curUri) {
     var defer=libQ.defer()
     var self=this
 
@@ -313,7 +313,7 @@ ControllerHotelRadio.prototype.handleGroupBrowseUri=function(curUri) {
     return defer.promise
 }
 
-ControllerHotelRadio.prototype.explodeUri = function(curUri) {
+ControllerCalmRadio.prototype.explodeUri = function(curUri) {
     var defer=libQ.defer()
     var self=this
 
@@ -360,7 +360,7 @@ ControllerHotelRadio.prototype.explodeUri = function(curUri) {
     return defer.promise
 };
 
-ControllerHotelRadio.prototype.getStreamUrl = function (curUri) {
+ControllerCalmRadio.prototype.getStreamUrl = function (curUri) {
     var defer=libQ.defer()
     var self=this
 
@@ -409,11 +409,11 @@ ControllerHotelRadio.prototype.getStreamUrl = function (curUri) {
     return defer.promise
 }
 
-ControllerHotelRadio.prototype.clearAddPlayTrack = function(track) {
+ControllerCalmRadio.prototype.clearAddPlayTrack = function(track) {
     var self = this;
     var defer=libQ.defer();
 
-    self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'ControllerHotelRadio::clearAddPlayTrack');
+    self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'ControllerCalmRadio::clearAddPlayTrack');
     
 
     self.getStreamUrl(track.uri)
@@ -446,14 +446,14 @@ ControllerHotelRadio.prototype.clearAddPlayTrack = function(track) {
     return defer;
 };
 
-ControllerHotelRadio.prototype.stop = function() {
+ControllerCalmRadio.prototype.stop = function() {
     var self = this;
-    self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'ControllerHotelRadio::stop');
+    self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'ControllerCalmRadio::stop');
     
     return self.mpdPlugin.sendMpdCommand('stop', []);
 };
 
-ControllerHotelRadio.prototype.getUIConfig = function () {
+ControllerCalmRadio.prototype.getUIConfig = function () {
     var self = this;
 
     var defer=libQ.defer();
@@ -521,11 +521,11 @@ ControllerHotelRadio.prototype.getUIConfig = function () {
     return defer.promise;
 };
 
-ControllerHotelRadio.prototype.saveAccountCredentials = function (settings) {
+ControllerCalmRadio.prototype.saveAccountCredentials = function (settings) {
     var self=this;
     var defer=libQ.defer();
 
-    self.loginToHotelRadio(settings['calmradio_username'], settings['calmradio_password'], 'user')
+    self.loginToCalmRadio(settings['calmradio_username'], settings['calmradio_password'], 'user')
         .then(() => self.registerIPAddress())
         .then(() => self.addToBrowseSources())
         .then(()=>{
@@ -548,11 +548,11 @@ ControllerHotelRadio.prototype.saveAccountCredentials = function (settings) {
     return defer.promise
 }
 
-ControllerHotelRadio.prototype.clearAccountCredentials = function (settings) {
+ControllerCalmRadio.prototype.clearAccountCredentials = function (settings) {
     var self=this;
     var defer=libQ.defer();
 
-    self.logoutFromHotelRadio(settings['calmradio_username'], settings['calmradio_password'])
+    self.logoutFromCalmRadio(settings['calmradio_username'], settings['calmradio_password'])
         //.then(() => self.registerIPAddress())
         .then(() => self.commandRouter.volumioRemoveToBrowseSources('calmradio'))
         .then(()=>{
@@ -572,7 +572,7 @@ ControllerHotelRadio.prototype.clearAccountCredentials = function (settings) {
     return defer.promise
 }
 
-ControllerHotelRadio.prototype.logoutFromHotelRadio=function(username, password) {
+ControllerCalmRadio.prototype.logoutFromCalmRadio=function(username, password) {
     var defer=libQ.defer()
     var self=this
 
@@ -600,11 +600,11 @@ ControllerHotelRadio.prototype.logoutFromHotelRadio=function(username, password)
     return defer.promise
 }
 
-ControllerHotelRadio.prototype.isLoggedIn = function () {
+ControllerCalmRadio.prototype.isLoggedIn = function () {
     return this.config.get("loggedin", false)
 }
 
-ControllerHotelRadio.prototype.startRefreshCron=function() {
+ControllerCalmRadio.prototype.startRefreshCron=function() {
     var self=this;
 
     this.stopRefreshCron();
@@ -616,15 +616,15 @@ ControllerHotelRadio.prototype.startRefreshCron=function() {
         self.startupLogin();
     });
 
-    this.logger.info('AccessToken refresher cron started for Hotel Radio');
+    this.logger.info('AccessToken refresher cron started for Calm Radio');
 }
 
-ControllerHotelRadio.prototype.stopRefreshCron=function() {
+ControllerCalmRadio.prototype.stopRefreshCron=function() {
     if(this.accessTokenRefreshCron)
     {
         this.accessTokenRefreshCron.cancel()
         this.accessTokenRefreshCron=undefined
     }
 
-    this.logger.info('Stopping AccessToken refresher cron for Hotel Radio');
+    this.logger.info('Stopping AccessToken refresher cron for Calm Radio');
 }
