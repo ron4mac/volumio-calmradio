@@ -1,0 +1,63 @@
+{
+  "page": {
+    "label": "TRANSLATE.COMMON.CONFIG_SECTION_TITLE"
+  },
+  "sections": [
+    {
+      "id": "CALMRADIO_SECTION",
+      "element": "section",
+      "label": "TRANSLATE.CALMRADIO.SECTION_ACCOUNT",
+      "image": "fa-user",
+      "description": "TRANSLATE.CALMRADIO.ACCOUNT_LOGIN_DESC",
+      "hidden":false,
+      "onSave": {
+        "type": "controller",
+        "endpoint": "music_service/calmradio",
+        "method": "saveAccountCredentials"
+      },
+      "saveButton": {
+        "label": "TRANSLATE.COMMON.LOGIN",
+        "data": [
+          "calmradio_username",
+          "calmradio_password"
+        ]
+      },
+      "content": [
+        {
+          "id":"calmradio_free_trial",
+          "element": "button",
+          "label": "TRANSLATE.CALMRADIO.FREE_TRIAL",
+          "description": "TRANSLATE.CALMRADIO.FREE_TRIAL_DESCR",
+          "onClick": {"type":"oauth", "performerUrl":"https://calmradio.fm/en/volumio","plugin":"music_service/calmradio", "scopes":["r_usr","w_usr","w_sub"]},
+          "hidden":false
+        },
+        {
+          "id": "calmradio_username",
+          "type": "text",
+          "element": "input",
+          "doc": "TRANSLATE.CALMRADIO.USERNAME_DOC",
+          "label": "TRANSLATE.COMMON.USERNAME",
+          "value": "",
+          "hidden":false
+        },
+        {
+          "id": "calmradio_password",
+          "type": "password",
+          "element": "input",
+          "doc": "TRANSLATE.CALMRADIO.PASSWORD_DOC",
+          "label": "TRANSLATE.COMMON.PASSWORD",
+          "value": "",
+          "hidden":false
+        },
+        {
+          "id":"calmradio_reset_password",
+          "element": "button",
+          "label": "TRANSLATE.CALMRADIO.RESET_PASSWORD",
+          "description": "TRANSLATE.CALMRADIO.RESET_PASSWORD_DESCR",
+          "onClick": {"type":"openUrl", "url":"http://www.qobuz.com/store-router/pages/volumio"},
+          "hidden":true
+        }
+      ]
+    }
+  ]
+}
