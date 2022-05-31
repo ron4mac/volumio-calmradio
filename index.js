@@ -1,10 +1,11 @@
 'use strict'
-var unirest=require('unirest');
-var libQ=require('kew');
-var ip = require('public-ip');
-var fs=require('fs-extra');
-var cron = require('node-schedule');
-var moment=require('moment');
+const unirest = require('unirest');
+const libQ = require('kew');
+const ip = require('public-ip');
+const fs = require('fs-extra');
+const NodeCache = require('node-cache');
+const cron = require('node-schedule');
+const moment = require('moment');
 
 var tokenExpirationTime;
 
@@ -14,12 +15,13 @@ var tokenExpirationTime;
 module.exports = ControllerCalmRadio;
 
 function ControllerCalmRadio(context) {
-	var self=this;
+	var self = this;
 
     this.context = context;
     this.commandRouter = this.context.coreCommand;
     this.logger = this.context.logger;
     this.configManager = this.context.configManager;
+    self.cache = new NodeCache({ stdTTL: 86400, checkperiod: 3600 });
 }
 
 ControllerCalmRadio.prototype.getConfigurationFiles = function () {
@@ -97,7 +99,6 @@ ControllerCalmRadio.prototype.startupLogin = function () {
 
     self.shallLogin()
         .then(()=>self.loginToCalmRadio(this.config.get('username'), this.config.get('password'), false))
-        .then(()=>self.registerIPAddress())
         .then(()=>self.addToBrowseSources())
 };
 
@@ -126,58 +127,23 @@ ControllerCalmRadio.prototype.loginToCalmRadio=function(username, password) {
 
     self.logger.info('Loggin in to CalmRadio');
 
-    unirest.post('https://api.calmradio.com/get_token')
-        .send('user='+username)
-        .send('pass='+password)
+    unirest.get('https://api.calmradio.com/get_token?user='+username+'&pass='+password)
         .then((response)=>{
             if(response && 
-                response.cookies && 
-                'PHPSESSID' in response.cookies && 
                 response.status === 200 &&
                 response.body &&
-                'user' in response.body &&
-                'id' in response.body['user'])
+                'membership' in response.body &&
+                response.body['membership']== 'active')
             {
-                self.sessionId=response.cookies['PHPSESSID']
-                
-                self.userId=response.body['user']["id"]
-                self.userEmail=response.body['user']["email"]
-                
+                self.userToken=response.body['token']
+                self.config.set('username', username)
+                self.config.set('password', password)
                 self.config.set("loggedin",true)
                 defer.resolve()
             } else {
                 defer.reject()
             }   
         })
-
-    return defer.promise
-}
-
-ControllerCalmRadio.prototype.registerIPAddress=function() {
-    var self=this
-    var defer=libQ.defer()
-    
-    ip.v4().then((address)=>{
-        var cookieJar=unirest.jar()
-        cookieJar.add('PHPSESSID='+self.sessionId,'https://users.calmradio/api/user/updateip')
-
-        var request=unirest.post('https://users.calmradio/api/user/updateip')
-            .jar(cookieJar)
-            .send('id='+self.userId)
-            .send('ip='+address)
-            .then((response)=>{
-                if(response && 
-                    response.status === 200 &&
-                    'user' in response.body)
-                {
-                    defer.resolve()
-                } else {
-                    defer.reject()
-                }   
-            })
-    }).catch((error)=>{
-        defer.reject()
-    })
 
     return defer.promise
 }
@@ -198,7 +164,7 @@ ControllerCalmRadio.prototype.addToBrowseSources = function () {
     var self = this;
 
     self.logger.info('Adding Calm Radio to Browse Sources');
-    var data = {name: 'calmradio', uri: 'calmradio://',plugin_type:'music_service',plugin_name:'calmradio',albumart:'/albumart?sectionimage=music_service/calmradio/icons/calmradio-icon.png'};
+    var data = {name: 'Calm Radio', uri: 'calmradio://',plugin_type:'music_service',plugin_name:'calmradio',albumart:'/albumart?sectionimage=music_service/calmradio/icons/calmradio-icon.png'};
     return self.commandRouter.volumioAddToBrowseSources(data);
 }
 
@@ -213,46 +179,64 @@ ControllerCalmRadio.prototype.handleBrowseUri = function (curUri) {
     }
 };
 
+ControllerCalmRadio.prototype.doListCategories=function() {
+    var self=this
+	var cats = self.cache.get("categories")
+	var groupItems = []
+
+	self.logger.info('Listing Calm Radio Categories');
+	cats.map(group => {
+		groupItems.push({
+			"type": "item-no-menu",
+			"title": group['name'],
+			"albumart": 'http://arts.calmradio.com' + group['image'],
+			"uri": `calmradio://${group['id']}`
+		})
+		if (group['categories']) {
+			group['categories'].map(sgrp => {
+				groupItems.push({
+					"type": "item-no-menu",
+					"title": '&nbsp;&nbsp;' + sgrp['name'],
+					"albumart": 'http://arts.calmradio.com' + sgrp['image'],
+					"uri": `calmradio://${sgrp['id']}`
+				})
+			})
+		}
+	})
+
+	var browseResponse={
+		"navigation": {
+			"lists": [
+				{
+					"type": "title",
+					"title": "TRANSLATE.CALMRADIO.GROUPS",
+					"availableListViews": [
+						"grid", "list"
+					],
+					"items": groupItems
+				}]
+		}
+	}
+	self.commandRouter.translateKeys(browseResponse, self.i18nStrings, self.i18nStringsDefaults);
+
+	return browseResponse
+}
+
 ControllerCalmRadio.prototype.handleRootBrowseUri=function() {
     var defer=libQ.defer()
     var self=this
 
-    var cookieJar = unirest.jar()
-    cookieJar.add('PHPSESSID=' + this.sessionId, 'https://users.calmradio/api/channelgroups/user')
+	if ( self.cache.has("categories")) {
+		defer.resolve(this.doListCategories())
+	}
 
-    var request = unirest.post('https://users.calmradio/api/channelgroups/user')
-        .jar(cookieJar)
-        .send('id=' + this.userId)
+	self.logger.info('Getting Calm Radio Categories');
+    var request = unirest.get('http://api.calmradio.com/categories.json')
         .then((response) => {
             if (response &&
-                response.status === 200 &&
-                'channel_groups' in response.body) {
-                var groupItems = []
-                response.body['channel_groups'].map(group => {
-                    groupItems.push({
-                        "type": "item-no-menu",
-                        "title": group['group_name'],
-                        "albumart": group['group_cover'],
-                        "uri": `calmradio://${group['id']}`
-                    })
-                })
-
-                var browseResponse={
-                    "navigation": {
-                        "lists": [
-                            {
-                                "type": "title",
-                                "title": "TRANSLATE.CALMRADIO.GROUPS",
-                                "availableListViews": [
-                                    "grid", "list"
-                                ],
-                                "items": groupItems
-                            }]
-                    }
-                }
-                self.commandRouter.translateKeys(browseResponse, self.i18nStrings, self.i18nStringsDefaults);
-
-                defer.resolve(browseResponse)
+                response.status === 200) {
+                self.cache.set("categories", response.body)
+                defer.resolve(this.doListCategories())
             } else {
                 defer.reject()
             }
@@ -267,26 +251,24 @@ ControllerCalmRadio.prototype.handleGroupBrowseUri=function(curUri) {
 
     var groupId=curUri.split('/')[2]
 
-    var cookieJar = unirest.jar()
-    cookieJar.add('PHPSESSID=' + this.sessionId, 'https://users.calmradio/api/channels/group')
-
-    var request = unirest.post('https://users.calmradio/api/channels/group')
-        .jar(cookieJar)
-        .send('id=' + groupId)
+	self.logger.info('Getting Calm Radio Channels for Group '+groupId);
+    var request = unirest.get('http://api.calmradio.com/channels.json')
         .then((response) => {
             if (response &&
-                response.status === 200 &&
-                'channels' in response.body) {
+                response.status === 200) {
                 var channelItems = []
-                response.body['channels'].map(channel => {
-                    channelItems.push({
-                        "type": "webradio",
-                        "title": channel['stream_name'],
-                        "albumart": channel['channel_cover'],
-                        "uri": `calmradio://${groupId}/${channel['id']}`,
-                        "service":"calmradio"
-
-                    })
+                response.body.map(cat => {
+                	if (cat['id'] == groupId) {
+                		cat['channels'].map(channel => {
+							channelItems.push({
+								"type": "webradio",
+								"title": channel['title'],
+								"albumart": channel['image'],
+								"uri": `calmradio://${groupId}/${channel['id']}`,
+								"service":"calmradio"
+							})
+						})
+                    }
                 })
 
                 var browseResponse={
@@ -526,11 +508,10 @@ ControllerCalmRadio.prototype.saveAccountCredentials = function (settings) {
     var defer=libQ.defer();
 
     self.loginToCalmRadio(settings['calmradio_username'], settings['calmradio_password'], 'user')
-        .then(() => self.registerIPAddress())
         .then(() => self.addToBrowseSources())
         .then(()=>{
             this.config.set('username', settings['calmradio_username'])
-            this.config.set('password',settings['calmradio_password'])
+            this.config.set('password', settings['calmradio_password'])
 
             var config = self.getUIConfig();
             config.then(function(conf) {
@@ -553,7 +534,6 @@ ControllerCalmRadio.prototype.clearAccountCredentials = function (settings) {
     var defer=libQ.defer();
 
     self.logoutFromCalmRadio(settings['calmradio_username'], settings['calmradio_password'])
-        //.then(() => self.registerIPAddress())
         .then(() => self.commandRouter.volumioRemoveToBrowseSources('calmradio'))
         .then(()=>{
             var config = self.getUIConfig();
@@ -576,14 +556,11 @@ ControllerCalmRadio.prototype.logoutFromCalmRadio=function(username, password) {
     var defer=libQ.defer()
     var self=this
 
-    unirest.post('https://users.calmradio/api/index/logout')
-        .send('username='+username)
-        .send('password='+password)
+    unirest.get('http://api.calmradio.com/check?user='+username+'&pass='+password)
+        //.send('username='+username)
+        //.send('password='+password)
         .then((response)=>{
             if(response && 
-                response.cookies && 
-                'PHPSESSID' in response.cookies && 
-                response.status === 200 &&
                 response.body &&
                 response.body.code == 200)
             {   
