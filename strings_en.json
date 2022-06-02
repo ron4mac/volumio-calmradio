@@ -11,7 +11,6 @@
     "ERROR_LOGGING_OUT":"An error occurred trying to log out from calmradio"
   },
   "CALMRADIO":{
-  	"CATEGORIES":"Categories",
     "GROUPS":"Groups",
     "CHANNELS":"Channels",
     "SECTION_ACCOUNT":"calmradio account credentials",
