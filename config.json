@@ -10,5 +10,9 @@
 	"token":{
 		"type": "string",
 		"value": ""
+	},
+	"bitrate":{
+		"type": "string",
+		"value": "64"
 	}
 }
