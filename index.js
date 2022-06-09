@@ -108,7 +108,6 @@ ControllerCalmRadio.prototype.startupLogin = function () {
 	self.addToBrowseSources()
 	self.shallLogin()
 		.then(() => self.loginToCalmRadio(this.config.get('username'), this.config.get('password'), false))
-//		.then(() => self.addToBrowseSources())
 }
 
 
@@ -135,7 +134,7 @@ ControllerCalmRadio.prototype.loginToCalmRadio = function (username, password) {
 	let defer = libQ.defer()
 	let self = this
 
-	self.logger.info('Loggin in to CalmRadio')
+	self.logger.info('Log in to Calm Radio')
 
 	unirest.get(CRURLS.token+'?user='+username+'&pass='+password)
 		.then((response) => {
@@ -194,7 +193,8 @@ ControllerCalmRadio.prototype.getCalmRadioData = function (which) {
 	if (self.cache.has(which)) {
 		defer.resolve(self.cache.get(which))
 	} else {
-		self.commandRouter.pushToastMessage('info', 'Updating Calm Radio '+which+' data')
+		let wtxt = self.getI18n('CALMRADIO.'+which.toUpperCase())
+		self.commandRouter.pushToastMessage('info', self.getI18n('CALMRADIO.UPDATING').replace('%',wtxt))
 		self.logger.info('Getting Calm Radio '+which+' data')
 		let request = unirest.get(CRURLS[which])
 			.then(response => {
@@ -337,7 +337,7 @@ ControllerCalmRadio.prototype.handleRootBrowseUri = function () {
 }
 
 
-ControllerCalmRadio.prototype.doListChannels = function (groupId) {
+ControllerCalmRadio.prototype.doListChannels = function (groupId, sterm=null) {
 	let self = this
 	self.logger.info('Calm Radio list channels for group '+groupId)
 	let chans = self.cache.get('channels')
@@ -347,19 +347,21 @@ ControllerCalmRadio.prototype.doListChannels = function (groupId) {
 	chans.map(cat => {
 		if (cat['category'] == groupId) {
 			cat['channels'].map(channel => {
-				let chant = 'webradio'
-				let chnid = channel['id']
-				if (!self.isLoggedIn() && !channel.streams.free) {
-					chant = 'item-no-menu'
-					chnid = '-1'
+				if (!sterm || sterm.test(channel.title) || sterm.test(channel.description)) {
+					let chant = 'webradio'
+					let chnid = channel['id']
+					if (!self.isLoggedIn() && !channel.streams.free) {
+						chant = 'item-no-menu'
+						chnid = '-1'
+					}
+					channelItems.push({
+						type: chant,
+						title: channel['title'].replace('CALMRADIO - ',''),
+						albumart: CRURLS.arts + channel['image'],
+						uri: `calmradio://${groupId}/${chnid}`,
+						service:'calmradio'
+					})
 				}
-				channelItems.push({
-					type: chant,
-					title: channel['title'].replace('CALMRADIO - ',''),
-					albumart: CRURLS.arts + channel['image'],
-					uri: `calmradio://${groupId}/${chnid}`,
-					service:'calmradio'
-				})
 			})
 		}
 	})
@@ -403,8 +405,6 @@ ControllerCalmRadio.prototype.handleGroupBrowseUri = function (curUri) {
 		return defer.promise
 	}
 
-//	if (subgrId == undefined) defer.resolve()
-
 	self.logger.info('Getting Calm Radio Channels for Group '+subgrId)
 	self.getCalmRadioData('channels')
 		.then(() => {
@@ -425,7 +425,6 @@ ControllerCalmRadio.prototype.explodeUri = function (uri) {
 
 	self.getChannelFromUri(uri)
 		.then((chan) => {
-			console.log(chan)
 			defer.resolve({
 				uri: uri,
 				service: 'calmradio',
@@ -442,12 +441,6 @@ ControllerCalmRadio.prototype.explodeUri = function (uri) {
 ControllerCalmRadio.prototype.getStreamUrl = function (curUri) {
 	let defer = libQ.defer()
 	let self = this
-
-//	if (!self.isLoggedIn()) {
-//		self.commandRouter.pushToastMessage('error', self.getI18n('COMMON.LOGIN_FIRST'))
-//		defer.reject()
-//		return defer.promise
-//	}
 
 	let rate, cred
 	let groupId = curUri.split('/')[2]
@@ -477,7 +470,7 @@ ControllerCalmRadio.prototype.getStreamUrl = function (curUri) {
 ControllerCalmRadio.prototype.clearAddPlayTrack = function (track) {
 	let self = this
 	let defer = libQ.defer()
-console.log(track)
+
 	self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'ControllerCalmRadio::clearAddPlayTrack')
 
 
@@ -498,12 +491,12 @@ console.log(track)
 					return self.mpdPlugin.sendMpdCommand('play',[])
 				})
 				.fail(function (e) {
-					self.logger.error('Could not Clear and Play CALMRADIO Track: ' + e)
+					self.logger.error('Could not Clear and Play Calm Radio Track: ' + e)
 					defer.reject(new Error())
 				})
 		})
 		.fail((e) => {
-			self.logger.error('Could not get HOTERADIO Stream URL: ' + e)
+			self.logger.error('Could not get Calm Radio Stream URL: ' + e)
 			defer.reject(new Error())
 		})
 
@@ -514,7 +507,8 @@ console.log(track)
 ControllerCalmRadio.prototype.clearAddPlayTracks = function (track) {
 	let self = this
 	let defer = libQ.defer()
-console.log(track)
+
+	self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'ControllerCalmRadio::clearAddPlayTracks')
 
 	defer.resolve()
 	return defer.promise
@@ -530,11 +524,24 @@ ControllerCalmRadio.prototype.stop = function () {
 }
 
 
-ControllerCalmRadio.prototype.search = function (text, etc) {
+ControllerCalmRadio.prototype.search = function (text) {
 	let self = this
 	let defer = libQ.defer()
-console.log(text,etc)
-	defer.resolve({})
+
+	self.getCalmRadioData('channels')
+		.then((chans) => {
+			let chlst = []
+			let rgx = new RegExp(text.value, 'i')
+			chans.map(cat => {
+				chlst = chlst.concat(self.doListChannels(cat['category'], rgx).navigation.lists[0].items)
+			})
+			defer.resolve([{
+				title: 'Calm Radio',
+				icon: 'fa-heartbeat',
+				availableListViews: ['list'],
+				items: chlst
+			}])
+		})
 
 	return defer.promise
 }
@@ -554,21 +561,19 @@ ControllerCalmRadio.prototype.getUIConfig = function () {
 				uiconf.sections[0].content[0].hidden = true
 				uiconf.sections[0].content[1].hidden = true
 				uiconf.sections[0].content[2].hidden = true
-				//uiconf.sections[0].content[3].hidden = false
-				//uiconf.sections[0].content[4].hidden = false
 
-				uiconf.sections[0].description = self.getI18n('CALMRADIO.LOGGED_IN_EMAIL')+self.config.get('username')
-				uiconf.sections[0].saveButton.label = self.getI18n('COMMON.LOGOUT')
+				uiconf.sections[0].description = self.getI18n('CONFIG.LOGGED_IN_EMAIL')+self.config.get('username')
+				uiconf.sections[0].saveButton.label = self.getI18n('CONFIG.LOGOUT')
 				uiconf.sections[0].onSave.method = 'clearAccountCredentials'
 			} else {
 				uiconf.sections[0].content[0].hidden = false
 				uiconf.sections[0].content[1].hidden = false
 				uiconf.sections[0].content[2].hidden = false
-				//uiconf.sections[0].content[3].hidden = true
+
 				uiconf.sections[1].hidden = true
 
-				uiconf.sections[0].description = self.getI18n('CALMRADIO.ACCOUNT_LOGIN_DESC')
-				uiconf.sections[0].saveButton.label = self.getI18n('COMMON.LOGIN')
+				uiconf.sections[0].description = self.getI18n('CONFIG.ACCOUNT_LOGIN_DESC')
+				uiconf.sections[0].saveButton.label = self.getI18n('CONFIG.LOGIN')
 				uiconf.sections[0].onSave.method = 'saveAccountCredentials'
 			}
 
@@ -602,7 +607,6 @@ ControllerCalmRadio.prototype.saveAccountCredentials = function (settings) {
 	let defer = libQ.defer()
 
 	self.loginToCalmRadio(settings['calmradio_username'], settings['calmradio_password'], 'user')
-//		.then(() => self.addToBrowseSources())
 		.then(() => {
 			this.config.set('username', settings['calmradio_username'])
 			this.config.set('password', settings['calmradio_password'])
@@ -629,7 +633,6 @@ ControllerCalmRadio.prototype.clearAccountCredentials = function (settings) {
 	let defer = libQ.defer()
 
 	self.logoutFromCalmRadio(settings['calmradio_username'], settings['calmradio_password'])
-//		.then(() => self.commandRouter.volumioRemoveToBrowseSources('calmradio'))
 		.then(() => {
 			let config = self.getUIConfig()
 			config.then(function(conf) {
