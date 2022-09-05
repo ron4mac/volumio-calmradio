@@ -3,4 +3,4 @@
 
 This music service plugin will play the free or premium music streams from [Calm Radio](https://calmradio.com "Calm Radio Website"). Calm Radio membership credentials are required for the premium streams.
 
-![screenshot](https://rjcrans.net/dev/volumio/crsshot.jpeg)
+![screenshot2](https://rjcrans.net/dev/volumio/crsshot.jpeg)
